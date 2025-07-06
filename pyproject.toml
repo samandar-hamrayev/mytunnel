@@ -1,0 +1,15 @@
+[project]
+name = "mytunnel"
+version = "0.1.0"
+description = "A localhost tunneling service like ngrok written in Python"
+authors = [{ name = "Samandar Hamrayev" }]
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "requests",
+    "python-dotenv",
+]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
