@@ -1,22 +1,22 @@
 import requests
 import json
-import os
 
-LOCAL_PORT = int(os.getenv("LOCAL_PORT", 8000))
 
-def handle_forwarding(sock):
+def handle_forwarding(sock, local_host, local_port):
+    print(f"[FORWARDER] 🔄 Forwarding requests to http://{local_host}:{local_port}")
+
     while True:
         try:
             data = sock.recv(65536)
             request = json.loads(data.decode())
 
-
             if request.get("type") == "http_request":
-                url = f"http://localhost:{LOCAL_PORT}{request['path']}"
+                url = f"http://{local_host}:{local_port}{request['path']}"
                 method = request['method'].lower()
                 headers = request.get('headers', {})
                 body = request.get('body', '')
 
+                print(f"[FORWARDER] 📤 Sending {method.upper()} request to {url}")
 
                 response = requests.request(
                     method=method,
