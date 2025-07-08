@@ -3,6 +3,7 @@ import socket
 import threading
 import json
 import uuid
+import base64
 from server.redis_client import redis_client
 
 HOST = '0.0.0.0'
@@ -11,28 +12,36 @@ PORT = 9999
 def listen_to_redis(tunnel_name, client_sock):
     queue_name = f"request_queue:{tunnel_name}"
     print(f"[TUNNEL] 🎧 Listening on Redis queue: {queue_name}")
-    
+
     while True:
         _, request_raw = redis_client.blpop(queue_name)
         if not request_raw:
             continue
 
         try:
-            # ❗️request_raw bu str bo'lsa, decode() chaqirilmaydi
             if isinstance(request_raw, bytes):
                 request_raw = request_raw.decode()
 
             payload = json.loads(request_raw)
             response_queue = payload["response_queue"]
 
-            # Clientga yuboramiz
+            # So'rovni clientga uzatamiz
             client_sock.sendall(json.dumps(payload).encode())
 
-            # Clientdan javob kutamiz
+            # Javobni kutamiz
             response_raw = client_sock.recv(4096)
 
-            # Redisga response yozamiz (agar redis decode_responses=False bo‘lsa bytes)
-            redis_client.rpush(response_queue, response_raw.decode())
+            try:
+                # Agar bu JSON yoki UTF-8 string bo'lsa
+                decoded = response_raw.decode('utf-8')
+                redis_client.rpush(response_queue, decoded)
+
+            except UnicodeDecodeError:
+                # Agar UTF-8 bo'lmasa (binary content)
+                encoded = base64.b64encode(response_raw).decode('utf-8')
+                redis_client.rpush(response_queue, json.dumps({
+                    "raw_base64": encoded
+                }))
 
         except Exception as e:
             print(f"[ERROR] Tunnel '{tunnel_name}' failed: {e}")
@@ -53,6 +62,7 @@ def handle_client(client_socket, addr):
 
 def start_server():
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     s.bind((HOST, PORT))
     s.listen(5)
     print(f"[SERVER] 🚀 MyTunnel socket server started on {HOST}:{PORT}")
